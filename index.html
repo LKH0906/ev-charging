@@ -87,10 +87,19 @@
 </table>
 
 <script>
-// 這裡是用 fetch 讀取資料（假設從 Sheets API）
-let chargingStations = [];
-
-// 模擬一筆資料（實際上可以從API讀取）
+fetch('https://api.sheetbest.com/sheets/954d5c60-9fe2-4016-8fd2-632b1a7e6c37')
+  .then(response => response.json())
+  .then(data => {
+    chargingStations = data.map(station => ({
+      name: station.name,
+      lat: parseFloat(station.lat),
+      lng: parseFloat(station.lng),
+      address: station.address,
+      type: station.type,
+      prices: JSON.parse(station.prices)
+    }));
+    updateTable();
+  });
 chargingStations = [
   {
     name: "信義快充站",
