@@ -76,7 +76,7 @@
     <tr>
       <th onclick="sortTable('name')">充電站名稱</th>
       <th onclick="sortTable('distance')">距離 (km)</th>
-      <th onclick="sortTable('price')">電價 (元/度)</th>
+      <th>當前電價 (元/度)</th>
       <th>地址</th>
       <th>快/慢充</th>
     </tr>
@@ -87,20 +87,59 @@
 </table>
 
 <script>
-// 假資料
-const chargingStations = [
-  { name: "信義快充站", lat: 25.0330, lng: 121.5654, price: 6.0, address: "台北市信義路五段", type: "快充" },
-  { name: "中山慢充站", lat: 25.0478, lng: 121.5319, price: 5.0, address: "台北市中山北路二段", type: "慢充" },
-  { name: "板橋快充站", lat: 25.0130, lng: 121.4637, price: 5.5, address: "新北市板橋區中山路", type: "快充" },
-  { name: "桃園慢充站", lat: 24.9936, lng: 121.3000, price: 4.8, address: "桃園市復興路", type: "慢充" },
-  { name: "新竹快充站", lat: 24.8138, lng: 120.9675, price: 5.2, address: "新竹市光復路", type: "快充" }
+// 這裡是用 fetch 讀取資料（假設從 Sheets API）
+let chargingStations = [];
+
+// 模擬一筆資料（實際上可以從API讀取）
+chargingStations = [
+  {
+    name: "信義快充站",
+    lat: 25.0330,
+    lng: 121.5654,
+    address: "台北市信義路五段",
+    type: "快充",
+    prices: [
+      { start: "00:00", end: "07:59", price: 5.5 },
+      { start: "08:00", end: "19:59", price: 6.0 },
+      { start: "20:00", end: "23:59", price: 5.8 }
+    ]
+  },
+  {
+    name: "板橋慢充站",
+    lat: 25.0130,
+    lng: 121.4637,
+    address: "新北市板橋區中山路",
+    type: "慢充",
+    prices: [
+      { start: "00:00", end: "23:59", price: 5.0 }
+    ]
+  }
 ];
 
-let userLat = null, userLng = null;
-let sortedBy = '';
+// 取得現在時間適用的價格
+function getCurrentPrice(station) {
+  const now = new Date();
+  const hour = now.getHours().toString().padStart(2, '0');
+  const minute = now.getMinutes().toString().padStart(2, '0');
+  const currentTime = `${hour}:${minute}`;
+  
+  for (let p of station.prices) {
+    if (isTimeInRange(currentTime, p.start, p.end)) {
+      return p.price;
+    }
+  }
+  return "未知"; // 沒有符合的區段
+}
 
+// 判斷現在時間是否在一個時間範圍內
+function isTimeInRange(current, start, end) {
+  return (start <= current && current <= end) ||
+         (start > end && (current >= start || current <= end));
+}
+
+// 計算距離
 function calculateDistance(lat1, lon1, lat2, lon2) {
-  const R = 6371; // 地球半徑 km
+  const R = 6371;
   const dLat = (lat2 - lat1) * Math.PI / 180;
   const dLon = (lon2 - lon1) * Math.PI / 180;
   const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
@@ -110,6 +149,7 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
   return (R * c).toFixed(2);
 }
 
+// 更新表格
 function updateTable() {
   const tbody = document.getElementById('chargingBody');
   tbody.innerHTML = '';
@@ -119,26 +159,26 @@ function updateTable() {
     if (!keyword || station.name.toLowerCase().includes(keyword) || station.address.toLowerCase().includes(keyword)) {
       const tr = document.createElement('tr');
       
-      // 名稱 (可點擊導航)
+      // 名稱
       const nameTd = document.createElement('td');
       nameTd.innerHTML = `<a href="https://www.google.com/maps/search/?api=1&query=${station.lat},${station.lng}" target="_blank">${station.name}</a>`;
       tr.appendChild(nameTd);
-      
+
       // 距離
       const distanceTd = document.createElement('td');
       distanceTd.textContent = station.distance ? station.distance : '定位中...';
       tr.appendChild(distanceTd);
-      
-      // 電價
+
+      // 當前電價
       const priceTd = document.createElement('td');
-      priceTd.textContent = station.price;
+      priceTd.textContent = getCurrentPrice(station);
       tr.appendChild(priceTd);
-      
-      // 地址 (可點擊導航)
+
+      // 地址
       const addressTd = document.createElement('td');
       addressTd.innerHTML = `<a href="https://www.google.com/maps/search/?api=1&query=${station.lat},${station.lng}" target="_blank">${station.address}</a>`;
       tr.appendChild(addressTd);
-      
+
       // 快/慢充
       const typeTd = document.createElement('td');
       typeTd.textContent = station.type;
@@ -150,45 +190,35 @@ function updateTable() {
 }
 
 function sortTable(field) {
-  if (sortedBy === field) {
-    chargingStations.reverse();
-  } else {
-    chargingStations.sort((a, b) => {
-      if (field === 'distance') {
-        return (parseFloat(a.distance) || Infinity) - (parseFloat(b.distance) || Infinity);
-      } else if (field === 'price') {
-        return a.price - b.price;
-      } else {
-        return a.name.localeCompare(b.name);
-      }
-    });
-    sortedBy = field;
+  if (field === 'distance') {
+    chargingStations.sort((a, b) => (parseFloat(a.distance) || Infinity) - (parseFloat(b.distance) || Infinity));
+  } else if (field === 'name') {
+    chargingStations.sort((a, b) => a.name.localeCompare(b.name));
   }
   updateTable();
 }
 
-// 搜尋即時更新
 document.getElementById('searchInput').addEventListener('input', updateTable);
 
-// 取得使用者位置
+// 定位
 if (navigator.geolocation) {
   navigator.geolocation.getCurrentPosition(position => {
-    userLat = position.coords.latitude;
-    userLng = position.coords.longitude;
+    const userLat = position.coords.latitude;
+    const userLng = position.coords.longitude;
     chargingStations.forEach(station => {
       station.distance = calculateDistance(userLat, userLng, station.lat, station.lng);
     });
     updateTable();
   }, error => {
-    alert("無法取得定位，將不顯示距離");
+    alert("無法取得定位，距離將顯示為未知");
     updateTable();
   });
 } else {
-  alert("瀏覽器不支援定位功能");
+  alert("不支援定位功能");
   updateTable();
 }
 
-// 初次載入
+// 首次載入
 updateTable();
 </script>
 
